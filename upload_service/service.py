@@ -50,3 +50,14 @@ def upload(key: str, file_bytes: bytes):
     except Exception as e:
         logger.error(f"Error subiendo archivo a R2: {e}")
         raise e
+
+def get_metadata(key: str):
+    try:
+        response = s3_client.head_object(
+            Bucket=config("R2_BUCKET"),
+            Key=key
+        )
+        return response
+    except Exception as e:
+        logger.error(f"Error obteniendo metadata de R2 para {key}: {e}")
+        raise e

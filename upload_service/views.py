@@ -7,7 +7,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from .serializers import VideoUploadSerializer
 from .models import Video
-from .service import upload
+from .service import get_metadata, upload
 from asgiref.sync import async_to_sync
 from decouple import config
 
@@ -36,20 +36,30 @@ class CloudflareStreamDirectUpload(APIView):
 
         file_url = f"{config('PUBLIC_URL')}/{file_key}"
 
-        # 6. Crear registro en DB
-        # video = Video.objects.create(
-        #     file_key=file_key,
-        #     file_url=file_url,
-        #     original_filename=original_name,
-        #     mime_type=video_file.content_type,
-        #     file_size=video_file.size,
-        #     extension=extension,
-        #     status="uploaded",
-        #     title=request.data.get("title", ""),
-        #     description=request.data.get("description", "")
-        # )
-
         return Response(
             {"key": file_key},
             status=status.HTTP_201_CREATED
         )
+
+class UploadProgressView(APIView):
+    def get(self, request, key: str):
+        total_size = request.query_params.get("total")
+        if not total_size or not key:
+            return Response(
+                {"error": "Faltan parámetros obligatorios 'total' o 'key'."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        try:
+            metadata = get_metadata(key)
+            uploaded_size = metadata['ContentLength']
+            percentage = round((int(uploaded_size) / int(total_size)) * 100, 2)
+            return Response({
+                "total": total_size,
+                "uploaded": uploaded_size,
+                "progress": percentage
+            })
+        except Exception as e:
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

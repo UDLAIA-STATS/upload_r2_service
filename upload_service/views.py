@@ -40,26 +40,3 @@ class CloudflareStreamDirectUpload(APIView):
             {"key": file_key},
             status=status.HTTP_201_CREATED
         )
-
-class UploadProgressView(APIView):
-    def get(self, request, key: str):
-        total_size = request.query_params.get("total")
-        if not total_size or not key:
-            return Response(
-                {"error": "Faltan parámetros obligatorios 'total' o 'key'."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        try:
-            metadata = get_metadata(key)
-            uploaded_size = metadata['ContentLength']
-            percentage = round((int(uploaded_size) / int(total_size)) * 100, 2)
-            return Response({
-                "total": total_size,
-                "uploaded": uploaded_size,
-                "progress": percentage
-            })
-        except Exception as e:
-            return Response(
-                {"error": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )

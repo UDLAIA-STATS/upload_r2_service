@@ -19,7 +19,7 @@ CHUNK_SIZE = 5 * 1024 * 1024  # 5 MB
 async def _trigger_analysis(object_key: str, id_partido: int, video_id: str):
     async with httpx.AsyncClient(timeout=10) as analysis_client:
         res = await analysis_client.post(
-            f"{config('ANALISYS_SERVICE_URL')}/analyze/run",
+            f"{config('ANALYSIS_SERVICE_URL')}/analyze/run",
             json={"video_name": object_key, "match_id": id_partido}
         )
         res.raise_for_status()

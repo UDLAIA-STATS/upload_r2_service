@@ -1,6 +1,7 @@
 
 import asyncio
 import logging
+import re
 import uuid
 import httpx
 from rest_framework.views import APIView
@@ -22,8 +23,14 @@ class VideoKeyGenerate(APIView):
         try:
             if not video_name:
                 raise ValidationError({"video_name": "Este campo es obligatorio."})
-            
-            return Response({"video_key": f"{uuid.uuid4()}_{video_name}"}, status=status.HTTP_200_OK)
+            key = f"{uuid.uuid4()}_{video_name}"
+            if len(key) > 100:
+                key  = key[-100:]
+            regex = r'^[a-zA-Z0-9_\-\.]+$'
+            if not re.match(regex, key):
+                key = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', key) 
+
+            return Response({"video_key": key}, status=status.HTTP_200_OK)
         except ValidationError as ve:
             return error_response(
                 "Error de validación.",

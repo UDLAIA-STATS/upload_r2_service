@@ -14,7 +14,7 @@ CHUNK_SIZE = 5 * 1024 * 1024  # 5 MB
     wait=wait_exponential(multiplier=2, min=2, max=10),
     retry=retry_if_exception_type((httpx.TimeoutException, httpx.HTTPStatusError)),
     before_sleep=before_sleep_log(logger, logging.WARNING),
-    reraise=False
+    reraise=True
 )
 async def _trigger_analysis(object_key: str, id_partido: int, video_id: str):
     async with httpx.AsyncClient(timeout=10) as analysis_client:

@@ -1,11 +1,10 @@
-
-import asyncio
 import logging
 import re
 import uuid
 import httpx
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from asgiref.sync import async_to_sync
 from rest_framework.exceptions import ValidationError
 from rest_framework import status
 from .serializers import VideoUploadSerializer
@@ -67,13 +66,11 @@ class CloudflareVideoUpload(APIView):
             logger.info("Datos validados | video_key=%s | id_partido=%s | filename=%s",
                         video_key, id_partido, video_file.name)
 
-            # 2. Ejecutar subida con progreso
-            asyncio.run(
-                upload_with_progress(
-                    video_file,
-                    video_file.name,
-                    id_partido,
-                    video_key)
+            async_to_sync(upload_with_progress)(
+                video_file,
+                video_file.name,
+                id_partido,
+                video_key
             )
 
             logger.info("Subida finalizada con éxito | video_key=%s", video_key)

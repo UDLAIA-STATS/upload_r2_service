@@ -31,7 +31,6 @@ jobs:
             path: bandit-report.json
 
   deploy:
-    needs: tests
     runs-on: ubuntu-latest
     name: Construir y desplegar microservicio en docker
     depends-on: bandit

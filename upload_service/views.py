@@ -106,7 +106,7 @@ class CloudflareVideoUpload(APIView):
         except Exception as e:
             logger.exception("Error inesperado en la subida | video_key=%s | error=%s", request.data.get("video_key"), str(e))
             return error_response(
+                "Error inesperado durante la subida del video.",
                 str(e),
-                None,
                 status.HTTP_500_INTERNAL_SERVER_ERROR
             )

@@ -48,3 +48,27 @@ jobs:
         run: |
           echo "Ejecutando tests con pytest..."
           python manage.py test
+  bandit:
+    runs-on: ubuntu-latest
+    name: Análisis de seguridad con Bandit
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Instalar Bandit
+        run: pip install bandit[toml]
+
+      - name: Ejecutar Bandit
+        run: |
+          bandit -r . -f json -o bandit-report.json || true
+
+      - name: Subir reporte como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-report
+          path: bandit-report.json

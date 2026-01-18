@@ -30,6 +30,7 @@ async def _chunked_reader_with_progress(
         total_size: int,
         video_id: str,
         notify_url: str,
+        progress_client: httpx.AsyncClient,
         chunk_size: int = CHUNK_SIZE):
     """Lee el archivo por trozos y notifica progreso."""
     chunks_totales = math.ceil(total_size / chunk_size)
@@ -47,9 +48,8 @@ async def _chunked_reader_with_progress(
 
         logger.debug("Chunk %s/%s  (%s%%)", chunk_num, chunks_totales, progress)
 
-        # notificación asíncrona (no bloqueante)
         asyncio.create_task(
-            httpx.AsyncClient(timeout=10).post(
+            progress_client.post(
                 notify_url,
                 json={"video_id": video_id, "status": "uploading", "progress": progress}
             )
@@ -63,41 +63,42 @@ async def upload_with_progress(file_obj, filename: str, id_partido: int, video_i
 
     notify_url = f"{config('VIDEO_UPLOAD_NOTIFY_URL')}/start-video-upload/"
 
-    # 1) inicio
-    async with httpx.AsyncClient(timeout=30) as client:
-        await client.post(
+    # Usar un único cliente para todas las notificaciones
+    async with httpx.AsyncClient(timeout=30) as notify_client:
+        # 1) inicio
+        await notify_client.post(
             notify_url,
             json={"video_id": video_id, "status": "started", "progress": 0})
 
-    # 2) URL de subida
-    worker_url = str(config("WORKER_URL"))
-    async with httpx.AsyncClient(timeout=30) as client:
-        r = await client.post(worker_url, json={"filename": filename})
-        r.raise_for_status()
-        data = r.json()
-        upload_url = data["uploadUrl"]
-        object_key = data["objectKey"]
+        # 2) URL de subida
+        worker_url = str(config("WORKER_URL"))
+        async with httpx.AsyncClient(timeout=30) as worker_client:
+            r = await worker_client.post(worker_url, json={"filename": filename})
+            r.raise_for_status()
+            data = r.json()
+            upload_url = data["uploadUrl"]
+            object_key = data["objectKey"]
 
-    # 3) preparar archivo
-    file_obj.seek(0)
-    total_size = file_obj.size
+        # 3) preparar archivo
+        file_obj.seek(0)
+        total_size = file_obj.size
 
-    # 4) subida con progreso
-    async with httpx.AsyncClient(timeout=None) as client:
-        resp = await client.put(
-            upload_url,
-            content=_chunked_reader_with_progress(
-                file_obj,
-                total_size,
-                video_id,
-                notify_url),
-            headers={"Content-Length": str(total_size)}
-        )
-        resp.raise_for_status()
+        # 4) subida con progreso - usar el mismo cliente de notificaciones
+        async with httpx.AsyncClient(timeout=None) as upload_client:
+            resp = await upload_client.put(
+                upload_url,
+                content=_chunked_reader_with_progress(
+                    file_obj,
+                    total_size,
+                    video_id,
+                    notify_url,
+                    notify_client),  # Pasar el cliente de notificaciones
+                headers={"Content-Length": str(total_size)}
+            )
+            resp.raise_for_status()
 
-    # 5) fin
-    async with httpx.AsyncClient() as client:
-        await client.post(
+        # 5) fin - usar el mismo cliente de notificaciones
+        await notify_client.post(
             notify_url,
             json={"video_id": video_id, "status": "finished", "progress": 100})
 

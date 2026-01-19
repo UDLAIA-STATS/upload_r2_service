@@ -140,15 +140,15 @@ async def upload_with_progress(
     except Exception:
         logger.exception("Upload pipeline failed", extra={"video_id": video_id})
         success = False
-        raise
     finally:
         # --- 4.  Cleanup + notificación final ---------------------------------
         if tmp_path:
             await cleanup_temp_file(tmp_path)
-        return await _close_pipeline(
-            video_id=video_id,
-            id_partido=id_partido,
-            object_key=object_key,
-            success=success,
-            notify_url=notify_url,
-        )
+
+    return await _close_pipeline(
+        video_id=video_id,
+        id_partido=id_partido,
+        object_key=object_key,
+        success=success,
+        notify_url=notify_url,
+    )

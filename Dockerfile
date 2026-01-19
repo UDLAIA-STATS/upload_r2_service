@@ -6,7 +6,7 @@ WORKDIR /app
 COPY requirements.txt /app/requirements.txt
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends libpq-dev gcc bash netcat-openbsd \
+ && apt-get install -y --no-install-recommends libpq-dev gcc bash \
  && pip install --no-cache-dir -r /app/requirements.txt \
  && apt-get purge -y --auto-remove gcc \
  && rm -rf /var/lib/apt/lists/*

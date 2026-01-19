@@ -12,8 +12,8 @@ class VideoUploadSerializer(serializers.Serializer):
 
     def validate_video(self, file):
         allowed_extensions = ["mp4", "mov", "mkv", "avi"]
-        max_file_size_mb = 5 # MB
-        max_bytes = max_file_size_mb * 1024 * 1024 * 1024 # 5 GB
+        max_file_size_gb = 5 # GB
+        max_bytes = max_file_size_gb * 1024 * 1024 * 1024 # 5 GB
 
         ext = file.name.split(".")[-1].lower()
         if ext not in allowed_extensions:
@@ -23,7 +23,7 @@ class VideoUploadSerializer(serializers.Serializer):
 
         if file.size > max_bytes:
             raise serializers.ValidationError(
-                f"El archivo supera los {max_file_size_mb} MB permitidos."
+                f"El archivo supera los {max_file_size_gb} GB permitidos."
             )
 
         if not file.content_type.startswith("video"):

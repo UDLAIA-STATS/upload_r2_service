@@ -35,7 +35,6 @@ async def _chunked_reader_with_progress(
     """Lee el archivo por trozos y notifica progreso."""
     chunks_totales = math.ceil(total_size / chunk_size)
     chunk_num = 0
-    bytes_enviados = 0
 
     while True:
         chunk = file_obj.read(chunk_size)
@@ -43,7 +42,6 @@ async def _chunked_reader_with_progress(
             break
 
         chunk_num += 1
-        bytes_enviados += len(chunk)
         progress = int((chunk_num / chunks_totales) * 100)
 
         logger.debug("Chunk %s/%s  (%s%%)", chunk_num, chunks_totales, progress)

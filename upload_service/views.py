@@ -24,7 +24,7 @@ class VideoKeyGenerate(APIView):
                 raise ValidationError({"video_name": "Este campo es obligatorio."})
             key = f"{uuid.uuid4()}_{video_name}"
             if len(key) > 100:
-                key  = key[-100:]
+                key = key[-100:]
             regex = r'^[a-zA-Z0-9_\-\.]+$'
             if not re.match(regex, key):
                 key = re.sub(r'[^a-zA-Z0-9_\-\.]', '_', key) 

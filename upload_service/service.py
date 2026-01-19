@@ -17,7 +17,7 @@ from upload_service.utils.file_management import (
     chunked_reader_with_progress,
     cleanup_temp_file,
 )
-from upload_service.utils.responses import success_response
+from upload_service.utils.responses import error_response, success_response
 from upload_service.utils.timeout import calculate_upload_timeout
 
 logger = logging.getLogger(__name__)
@@ -102,10 +102,13 @@ async def _close_pipeline(
             await _trigger_analysis(object_key, id_partido, video_id)
         except Exception:
             logger.exception("Analysis launch failed", extra={"video_id": video_id})
-        return success_response("Upload successful", {"video_name": object_key}, 200)
+        return success_response("La subida del video ha finalizado.", {"video_name": object_key}, 200)
 
-    await _notify_status(video_id, "error", 0, notify_url)
-    raise Exception("La subida del video ha fallado, inténtelo de nuevo.")
+    return error_response(
+        "La subida del video ha fallado.",
+        {"video_name": object_key},
+        500
+    )
 
 async def upload_with_progress(
     file_obj,

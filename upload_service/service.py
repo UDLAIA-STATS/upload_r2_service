@@ -62,7 +62,7 @@ def calculate_upload_timeout(total_size: int) -> int:
     size_mbits = (total_size * 8) / (1024 * 1024)
     base_seconds = size_mbits / 0.5  # 0.5 Mbps mínimo
 
-    timeout_seconds = int(base_seconds * 1.8)  # 80% margen
+    timeout_seconds = int(base_seconds * 1.8)  # 80% margen adicional (180% del tiempo base)
 
     return max(600, min(14400, timeout_seconds))
 
@@ -124,18 +124,16 @@ async def upload_with_progress(file_obj, filename: str, id_partido: int, video_i
                     )
                     resp.raise_for_status()
 
-                # 5) fin - usar el mismo cliente de notificaciones
-                await notify_client.post(
-                    notify_url,
-                    json={"video_id": video_id, "status": "finished", "progress": 100})
-                
-                try:
-                    await _trigger_analysis(object_key, id_partido, video_id)
-                except Exception:
-                    logger.exception("Error al iniciar el análisis para el video | video_key=%s", video_id)
-                    traceback.print_exc()
-                
-                return {"message": "Video subido correctamente. El análisis se iniciará en breve."}
+            # 5) fin - usar el mismo cliente de notificaciones
+            await notify_client.post(
+                notify_url,
+                json={"video_id": video_id, "status": "finished", "progress": 100})
+        try:
+            await _trigger_analysis(object_key, id_partido, video_id)
+        except Exception:
+            logger.exception("Error al iniciar el análisis para el video | video_key=%s", video_id)
+        
+        return {"message": "Video subido correctamente. El análisis se iniciará en breve."}
 
             finally:
                 # Limpiar archivo temporal
@@ -146,4 +144,4 @@ async def upload_with_progress(file_obj, filename: str, id_partido: int, video_i
 
     except Exception:
         logger.exception("Falló la subida | video_key=%s", video_id)
-        traceback.print_exc()
+

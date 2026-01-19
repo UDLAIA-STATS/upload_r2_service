@@ -129,7 +129,7 @@ Edita `settings.ini` con tus valores:
 DEBUG=True
 WORKER_URL=https://tu-worker.workers.dev
 VIDEO_UPLOAD_NOTIFY_URL=http://localhost:8060/api
-ANALISYS_SERVICE_URL=http://127.0.0.1:6070
+ANALYSIS_SERVICE_URL=http://127.0.0.1:6070
 ```
 
 ### 4. Realizar migraciones
@@ -142,7 +142,7 @@ python manage.py migrate
 python manage.py runserver
 ```
 
-El servicio estará disponible en `http://localhost:8050`
+El servicio estará disponible en el host en `http://localhost:8050` (mapeado al puerto interno `8000` dentro del contenedor Docker).
 
 ## 📡 API Endpoints
 

@@ -22,7 +22,7 @@ jobs:
 
         - name: Ejecutar Bandit
           run: |
-            bandit -r . -f json -o bandit-report.json || true
+            bandit -r . -f json -o bandit-report.json
 
         - name: Subir reporte como artefacto
           uses: actions/upload-artifact@v4

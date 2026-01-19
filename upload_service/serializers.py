@@ -2,27 +2,25 @@ from rest_framework import serializers
 
 class VideoUploadSerializer(serializers.Serializer):
     video = serializers.FileField(required=True)
-    id_partido = serializers.CharField(required=True, allow_blank=False)
+    video_key = serializers.CharField(required=True, max_length=255)
+    id_partido = serializers.IntegerField(required=True)
 
     def validate_video(self, file):
         allowed_extensions = ["mp4", "mov", "mkv", "avi"]
-        max_file_size_mb = 5000 # 5GB
-        max_bytes = max_file_size_mb * 1024 * 1024 * 1024
+        max_file_size_gb = 5 # GB
+        max_bytes = max_file_size_gb * 1024 * 1024 * 1024 # 5 GB
 
-        # Validación 1: extensión
         ext = file.name.split(".")[-1].lower()
         if ext not in allowed_extensions:
             raise serializers.ValidationError(
                 f"Formato no permitido. Extensiones válidas: {', '.join(allowed_extensions)}"
             )
 
-        # Validación 2: tamaño
         if file.size > max_bytes:
             raise serializers.ValidationError(
-                f"El archivo supera los {max_file_size_mb} MB permitidos."
+                f"El archivo supera los {max_file_size_gb} GB permitidos."
             )
 
-        # Validación 3: tipo MIME
         if not file.content_type.startswith("video"):
             raise serializers.ValidationError(
                 "El archivo subido no parece ser un video válido."
@@ -31,6 +29,6 @@ class VideoUploadSerializer(serializers.Serializer):
         return file
     
     def validate_id_partido(self, value):
-        if not value.strip():
-            raise serializers.ValidationError("El campo 'id_partido' no puede estar vacío.")
+        if value <= 0:
+            raise serializers.ValidationError("El id_partido debe ser mayor a 0.")
         return value

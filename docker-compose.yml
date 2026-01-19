@@ -14,4 +14,4 @@ services:
       - ANALYSIS_SERVICE_URL=${ANALYSIS_SERVICE_URL}
       - SECRET_KEY=${SECRET_KEY}
     ports:
-    - "8050:8000"
+    - "8050:8050"

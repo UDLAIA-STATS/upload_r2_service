@@ -29,4 +29,6 @@ def calculate_upload_timeout(total_size: int) -> int:
     # Restringimos el timeout entre 10 minutos y 4 horas para equilibrar:
     # - fiabilidad en subidas grandes en conexiones lentas,
     # - con una experiencia de usuario razonable y límites operativos.
-    return max(600, min(14400, timeout_seconds))
+    # Permitir tiempo suficiente para subir hasta 5GB a 0.5 Mbps (~24h) más el margen.
+    # Se limita el timeout máximo a 48 horas (172800 segundos) para evitar tiempos ilimitados.
+    return max(600, min(172800, timeout_seconds))

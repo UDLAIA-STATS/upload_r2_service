@@ -129,7 +129,7 @@ Edita `settings.ini` con tus valores:
 DEBUG=True
 WORKER_URL=https://tu-worker.workers.dev
 VIDEO_UPLOAD_NOTIFY_URL=http://localhost:8060/api
-ANALISYS_SERVICE_URL=http://127.0.0.1:6070
+ANALYSIS_SERVICE_URL=http://127.0.0.1:6070
 ```
 
 ### 4. Realizar migraciones

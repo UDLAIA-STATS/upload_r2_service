@@ -33,7 +33,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     name: Construir y desplegar microservicio en docker
-    depends-on: bandit
+    needs: bandit
 
     env:
       IMAGE_NAME: upload_service

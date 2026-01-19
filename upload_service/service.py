@@ -139,8 +139,13 @@ async def upload_with_progress(file_obj, filename: str, id_partido: int, video_i
                 # Limpiar archivo temporal
                 try:
                     os.unlink(tmp_file_path)
-                except OSError:
-                    pass  # Ignorar errores de limpieza
+                except OSError as exc:
+                    logger.warning(
+                        "No se pudo eliminar el archivo temporal %s: %s",
+                        tmp_file_path,
+                        exc,
+                        exc_info=True,
+                    )
 
     except Exception:
         logger.exception("Falló la subida | video_key=%s", video_id)

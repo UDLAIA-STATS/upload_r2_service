@@ -43,9 +43,9 @@ async def save_uploaded_file_temporarily(file_obj, filename: str) -> Path:
     
     tmp_file_path = temp_dir / f"{filename}_{id(file_obj)}.tmp"
     
-    with open(tmp_file_path, 'wb') as tmp_file:
+    async with aiofiles.open(tmp_file_path, 'wb') as tmp_file:
         for chunk in file_obj.chunks():
-            tmp_file.write(chunk)
+            await tmp_file.write(chunk)
     
     return tmp_file_path
 

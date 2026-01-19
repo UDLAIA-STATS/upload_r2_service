@@ -5,11 +5,6 @@ class VideoUploadSerializer(serializers.Serializer):
     video_key = serializers.CharField(required=True, max_length=255)
     id_partido = serializers.IntegerField(required=True)
 
-    def validate_video_key(self, value):
-        if not value:
-            raise serializers.ValidationError("El campo video_key es obligatorio.")
-        return value
-
     def validate_video(self, file):
         allowed_extensions = ["mp4", "mov", "mkv", "avi"]
         max_file_size_gb = 5 # GB

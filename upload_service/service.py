@@ -126,7 +126,7 @@ async def upload_with_progress(
             tmp_path = await create_tmp_file(file_obj, filename, video_id)
         except Exception as exc:
             logger.error("Temporary file creation failed after retries", extra={"video_id": video_id})
-            return {"error": f"Error preparing file: {str(exc)}"}
+            raise exc
 
         total_size = tmp_path.stat().st_size
 

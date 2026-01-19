@@ -95,10 +95,9 @@ async def save_uploaded_file_temporarily(file_obj, filename: str) -> Path | None
         return tmp_path
 
     except Exception as exc:
-        raise exc
-    finally:
         tmp_file.close()
         Path(temp_dir, tmp_file.name).unlink(missing_ok=True)
+        raise exc
         
 
 async def cleanup_temp_file(file_path: Path):
@@ -139,7 +138,6 @@ async def cleanup_temp_file(file_path: Path):
     before_sleep=before_sleep_log(logger, logging.WARNING),
 )
 async def create_tmp_file(file_obj, filename: str, video_id: str) -> Path:
-    """Crea archivo temporal con reintentos."""
     tmp_path = await save_uploaded_file_temporarily(file_obj, filename)
     if not tmp_path:
         raise ValueError("Temporary file creation returned None")
@@ -148,4 +146,3 @@ async def create_tmp_file(file_obj, filename: str, video_id: str) -> Path:
         raise ValueError(f"Invalid file size: {size}")
     logger.info("Temporary file ready", extra={"video_id": video_id, "size": size})
     return tmp_path
-

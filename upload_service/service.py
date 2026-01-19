@@ -17,6 +17,7 @@ from upload_service.utils.file_management import (
     chunked_reader_with_progress,
     cleanup_temp_file,
 )
+from upload_service.utils.responses import success_response
 from upload_service.utils.timeout import calculate_upload_timeout
 
 logger = logging.getLogger(__name__)
@@ -94,24 +95,24 @@ async def _close_pipeline(
     object_key: str | None,
     success: bool,
     notify_url: str,
-) -> dict:
-    if success and object_key:  # <- garantizamos object_key str
+):
+    if success and object_key:
         await _notify_status(video_id, "finished", 100, notify_url)
         try:
             await _trigger_analysis(object_key, id_partido, video_id)
         except Exception:
             logger.exception("Analysis launch failed", extra={"video_id": video_id})
-        return {"message": "Video subido exitosamente. El proceso de análisis comenzará en breve."}
+        return success_response("Upload successful", {"video_name": object_key}, 200)
 
     await _notify_status(video_id, "error", 0, notify_url)
-    return {"error": "Upload failed – check server logs"}
+    raise Exception("La subida del video ha fallado, inténtelo de nuevo.")
 
 async def upload_with_progress(
     file_obj,
     filename: str,
     id_partido: int,
     video_id: str,
-) -> dict:
+):
     """Upload pipeline sin anidamiento profundo."""
     logger.info("Upload started", extra={"video_id": video_id, "filename": filename, "match_id": id_partido})
 
@@ -132,15 +133,12 @@ async def upload_with_progress(
         await _notify_status(video_id, "started", 0, notify_url)
         upload_url, object_key = await _request_upload_urls(filename, video_id)
 
-        # --- 3.  Stream to storage --------------------------------------------
         await _stream_file_to_storage(tmp_path, upload_url, total_size, video_id, notify_url)
         success = True
 
     except Exception:
         logger.exception("Upload pipeline failed", extra={"video_id": video_id})
-        success = False
     finally:
-        # --- 4.  Cleanup + notificación final ---------------------------------
         if tmp_path:
             await cleanup_temp_file(tmp_path)
 

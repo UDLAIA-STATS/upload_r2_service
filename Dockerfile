@@ -13,7 +13,7 @@ RUN apt-get update \
 
 COPY . /app
 
-EXPOSE 8000
+EXPOSE 8050
 
 # EntryPoint del contenedor API
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+CMD ["python", "manage.py", "runserver", "0.0.0.0:8050"]

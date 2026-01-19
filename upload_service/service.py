@@ -1,154 +1,119 @@
-from __future__ import annotations
-
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type, before_sleep_log
+import asyncio
 import logging
-from pathlib import Path
+import math
 import httpx
-from tenacity import (
-    retry,
-    stop_after_attempt,
-    wait_exponential,
-    retry_if_exception_type,
-    before_sleep_log,
-)
 from decouple import config
+import traceback
 
-from upload_service.utils.file_management import (
-    create_tmp_file,
-    chunked_reader_with_progress,
-    cleanup_temp_file,
-)
-from upload_service.utils.responses import error_response, success_response
 from upload_service.utils.timeout import calculate_upload_timeout
 
 logger = logging.getLogger(__name__)
+CHUNK_SIZE = 5 * 1024 * 1024  # 5 MB
+
 
 @retry(
     stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=2, min=2, max=10),
     retry=retry_if_exception_type((httpx.TimeoutException, httpx.HTTPStatusError)),
     before_sleep=before_sleep_log(logger, logging.WARNING),
-    reraise=True,
+    reraise=False
 )
-async def _trigger_analysis(object_key: str, id_partido: int, video_id: str) -> None:
-    """Lanza el análisis una vez finalizada la subida."""
-    async with httpx.AsyncClient(timeout=10) as client:
-        res = await client.post(
+async def _trigger_analysis(object_key: str, id_partido: int, video_id: str):
+    async with httpx.AsyncClient(timeout=10) as analysis_client:
+        res = await analysis_client.post(
             f"{config('ANALYSIS_SERVICE_URL')}/analyze/run",
-            json={"video_name": object_key, "match_id": id_partido},
+            json={"video_name": object_key, "match_id": id_partido}
         )
         res.raise_for_status()
-    logger.info("Analysis triggered", extra={"video_id": video_id, "status_code": res.status_code})
+        logger.info("Análisis iniciado con éxito | video_key=%s | status_code=%s", video_id, res.status_code)
 
-async def _request_upload_urls(filename: str, video_id: str) -> tuple[str, str]:
-    """Obtiene URL firmada y object-key del worker."""
-    worker_url = str(config("WORKER_URL"))
-    async with httpx.AsyncClient(timeout=30) as client:
-        r = await client.post(worker_url, json={"filename": filename})
-        r.raise_for_status()
-    data = r.json()
-    return data["uploadUrl"], data["objectKey"]
+async def _chunked_reader_with_progress(
+        file_obj,
+        total_size: int,
+        video_id: str,
+        notify_url: str,
+        chunk_size: int = CHUNK_SIZE):
+    """Lee el archivo por trozos y notifica progreso."""
+    chunks_totales = math.ceil(total_size / chunk_size)
+    chunk_num = 0
+    bytes_enviados = 0
 
+    while True:
+        chunk = file_obj.read(chunk_size)
+        if not chunk:
+            break
 
-async def _stream_file_to_storage(
-    tmp_path: Path,
-    upload_url: str,
-    total_size: int,
-    video_id: str,
-    notify_url: str,
-) -> None:
-    """Sube el fichero en chunks con notificaciones de progreso."""
-    timeout = calculate_upload_timeout(total_size)
-    async with httpx.AsyncClient(timeout=timeout) as upload_client:
-        await upload_client.put(
-            upload_url,
-            content=chunked_reader_with_progress(
-                str(tmp_path),
-                total_size,
-                video_id,
+        chunk_num += 1
+        bytes_enviados += len(chunk)
+        progress = int((chunk_num / chunks_totales) * 100)
+
+        logger.debug("Chunk %s/%s  (%s%%)", chunk_num, chunks_totales, progress)
+
+        asyncio.create_task(
+            httpx.AsyncClient(timeout=10).post(
                 notify_url,
-                upload_client,
-            ),
-            headers={"Content-Length": str(total_size)},
+                json={"video_id": video_id, "status": "uploading", "progress": progress}
+            )
         )
+        yield chunk
 
 
-async def _notify_status(
-    video_id: str,
-    status: str,
-    progress: int,
-    notify_url: str,
-) -> None:
-    """Notifica estado al servicio externo (con tolerancia a fallos)."""
-    async with httpx.AsyncClient(timeout=30) as client:
-        try:
+async def upload_with_progress(file_obj, filename: str, id_partido: int, video_id: str):
+    logger.info("Starting upload | video_id=%s | filename=%s | match_id=%s",
+                video_id, filename, id_partido)
+
+    notify_url = f"{config('VIDEO_UPLOAD_NOTIFY_URL')}/start-video-upload/"
+    
+    try:
+
+        async with httpx.AsyncClient(timeout=30) as client:
             await client.post(
                 notify_url,
-                json={"video_id": video_id, "status": status, "progress": progress},
-            )
-        except httpx.HTTPError as exc:
-            logger.warning("Notification failed", extra={"video_id": video_id, "error": str(exc)})
+                json={"video_id": video_id, "status": "started", "progress": 0})
 
+        worker_url = str(config("WORKER_URL"))
+        async with httpx.AsyncClient(timeout=30) as client:
+            r = await client.post(worker_url, json={"filename": filename})
+            r.raise_for_status()
+            data = r.json()
+            upload_url = data["uploadUrl"]
+            object_key = data["objectKey"]
 
-async def _close_pipeline(
-    video_id: str,
-    id_partido: int,
-    object_key: str | None,
-    success: bool,
-    notify_url: str,
-):
-    if success and object_key:
-        await _notify_status(video_id, "finished", 100, notify_url)
+        file_obj.seek(0)
+        total_size = file_obj.size
+        
+        try:
+            async with httpx.AsyncClient(timeout=None) as client:
+                resp = await client.put(
+                    upload_url,
+                    content=_chunked_reader_with_progress(
+                        file_obj,
+                        total_size,
+                        video_id,
+                        notify_url),
+                    headers={"Content-Length": str(total_size)}
+                )
+                resp.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            raise e
+
+        # 5) fin
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                notify_url,
+                json={"video_id": video_id, "status": "finished", "progress": 100})
+
         try:
             await _trigger_analysis(object_key, id_partido, video_id)
         except Exception:
-            logger.exception("Analysis launch failed", extra={"video_id": video_id})
-        return success_response("La subida del video ha finalizado.", {"video_name": object_key}, 200)
-
-    return error_response(
-        "La subida del video ha fallado.",
-        {"video_name": object_key},
-        500
-    )
-
-async def upload_with_progress(
-    file_obj,
-    filename: str,
-    id_partido: int,
-    video_id: str,
-):
-    """Upload pipeline sin anidamiento profundo."""
-    logger.info("Upload started", extra={"video_id": video_id, "filename": filename, "match_id": id_partido})
-
-    tmp_path: Path | None = None
-    object_key: str | None = None
-    notify_url = f"{config('VIDEO_UPLOAD_NOTIFY_URL')}/start-video-upload/"
-    success = False
-
-    try:
-        try:
-            tmp_path = await create_tmp_file(file_obj, filename, video_id)
-        except Exception as exc:
-            logger.error("Temporary file creation failed after retries", extra={"video_id": video_id})
-            raise exc
-
-        total_size = tmp_path.stat().st_size
-
-        await _notify_status(video_id, "started", 0, notify_url)
-        upload_url, object_key = await _request_upload_urls(filename, video_id)
-
-        await _stream_file_to_storage(tmp_path, upload_url, total_size, video_id, notify_url)
-        success = True
-
-    except Exception:
-        logger.exception("Upload pipeline failed", extra={"video_id": video_id})
-    finally:
-        if tmp_path:
-            await cleanup_temp_file(tmp_path)
-
-    return await _close_pipeline(
-        video_id=video_id,
-        id_partido=id_partido,
-        object_key=object_key,
-        success=success,
-        notify_url=notify_url,
-    )
+            logger.exception("Falló el análisis después de 3 intentos | video_key=%s", video_id)
+        return {"message": "Video subido correctamente. El análisis se iniciará en breve."}
+    except httpx.HTTPStatusError as e:
+        logger.exception("Error al subir el video | video_key=%s", video_id)
+        traceback.print_exc()
+        raise e
+    except Exception as e:
+        logger.exception("Error al subir el video | video_key=%s", video_id)
+        traceback.print_exc()
+        raise e

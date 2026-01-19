@@ -120,8 +120,10 @@ async def upload_with_progress(file_obj, filename: str, id_partido: int, video_i
         except Exception:
             logger.exception("Error al iniciar el análisis para el video | video_key=%s", video_id)
             traceback.print_exc()
+        
+        return {"message": "Video subido correctamente. El análisis se iniciará en breve."}
+
     except Exception:
         logger.exception("Falló la subida | video_key=%s", video_id)
         traceback.print_exc()
 
-    return {"message": "Video subido correctamente. El análisis se iniciará en breve."}

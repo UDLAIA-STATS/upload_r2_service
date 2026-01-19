@@ -68,8 +68,12 @@ async def upload_with_progress(file_obj, filename: str, id_partido: int, video_i
                     notify_url,
                     json={"video_id": video_id, "status": "started", "progress": 0}
                 )
-            except Exception:
-                logger.warning("Error al notificar inicio | video_id=%s", video_id)
+            except (httpx.HTTPError, httpx.TimeoutException) as exc:
+                logger.warning(
+                    "Error al notificar inicio | video_id=%s | error=%s",
+                    video_id,
+                    str(exc),
+                )
 
             # Obtener URL de upload
             worker_url = str(config("WORKER_URL"))

@@ -9,7 +9,6 @@ from tenacity import (
     wait_exponential,
     retry_if_exception_type,
     before_sleep_log,
-    wait_fixed,
 )
 from decouple import config
 

@@ -1,5 +1,5 @@
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type, before_sleep_log
-import asyncio
+import traceback
 import logging
 import math
 import httpx
@@ -61,48 +61,46 @@ async def upload_with_progress(file_obj, filename: str, id_partido: int, video_i
 
     notify_url = f"{config('VIDEO_UPLOAD_NOTIFY_URL')}/start-video-upload/"
 
-    # Usar un único cliente para todas las notificaciones
-    async with httpx.AsyncClient(timeout=30) as notify_client:
-        # 1) inicio
-        await notify_client.post(
-            notify_url,
-            json={"video_id": video_id, "status": "started", "progress": 0})
-
-        # 2) URL de subida
-        worker_url = str(config("WORKER_URL"))
-        async with httpx.AsyncClient(timeout=30) as worker_client:
-            r = await worker_client.post(worker_url, json={"filename": filename})
-            r.raise_for_status()
-            data = r.json()
-            upload_url = data["uploadUrl"]
-            object_key = data["objectKey"]
-
-        # 3) preparar archivo
-        file_obj.seek(0)
-        total_size = file_obj.size
-
-        # 4) subida con progreso - usar el mismo cliente de notificaciones
-        async with httpx.AsyncClient(timeout=None) as upload_client:
-            resp = await upload_client.put(
-                upload_url,
-                content=_chunked_reader_with_progress(
-                    file_obj,
-                    total_size,
-                    video_id,
-                    notify_url,
-                    notify_client),  # Pasar el cliente de notificaciones
-                headers={"Content-Length": str(total_size)}
-            )
-            resp.raise_for_status()
-
-        # 5) fin - usar el mismo cliente de notificaciones
-        await notify_client.post(
-            notify_url,
-            json={"video_id": video_id, "status": "finished", "progress": 100})
-
     try:
+        async with httpx.AsyncClient(timeout=30) as notify_client:
+            await notify_client.post(
+                notify_url,
+                json={"video_id": video_id, "status": "started", "progress": 0})
+
+            # 2) URL de subida
+            worker_url = str(config("WORKER_URL"))
+            async with httpx.AsyncClient(timeout=30) as worker_client:
+                r = await worker_client.post(worker_url, json={"filename": filename})
+                r.raise_for_status()
+                data = r.json()
+                upload_url = data["uploadUrl"]
+                object_key = data["objectKey"]
+
+            # 3) preparar archivo
+            file_obj.seek(0)
+            total_size = file_obj.size
+
+            # 4) subida con progreso - usar el mismo cliente de notificaciones
+            async with httpx.AsyncClient(timeout=None) as upload_client:
+                resp = await upload_client.put(
+                    upload_url,
+                    content=_chunked_reader_with_progress(
+                        file_obj,
+                        total_size,
+                        video_id,
+                        notify_url,
+                        notify_client),  # Pasar el cliente de notificaciones
+                    headers={"Content-Length": str(total_size)}
+                )
+                resp.raise_for_status()
+
+            # 5) fin - usar el mismo cliente de notificaciones
+            await notify_client.post(
+                notify_url,
+                json={"video_id": video_id, "status": "finished", "progress": 100})
         await _trigger_analysis(object_key, id_partido, video_id)
     except Exception:
-        logger.exception("Falló el análisis después de 3 intentos | video_key=%s", video_id)
+        logger.exception("Falló la subida | video_key=%s", video_id)
+        traceback.print_exc()
 
     return {"message": "Video subido correctamente. El análisis se iniciará en breve."}

@@ -96,7 +96,11 @@ async def upload_with_progress(file_obj, filename: str, id_partido: int, video_i
             await notify_client.post(
                 notify_url,
                 json={"video_id": video_id, "status": "finished", "progress": 100})
-        await _trigger_analysis(object_key, id_partido, video_id)
+        try:
+            await _trigger_analysis(object_key, id_partido, video_id)
+        except Exception:
+            logger.exception("Error al iniciar el análisis para el video | video_key=%s", video_id)
+            traceback.print_exc()
     except Exception:
         logger.exception("Falló la subida | video_key=%s", video_id)
         traceback.print_exc()

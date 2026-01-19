@@ -15,5 +15,4 @@ COPY . /app
 
 EXPOSE 8050
 
-# EntryPoint del contenedor API
 CMD ["python", "manage.py", "runserver", "0.0.0.0:8050"]

@@ -30,10 +30,10 @@ jobs:
 
       - name: Subir reporte como artefacto
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: bandit-report
           path: bandit-report.json
-        if: always()
   deploy:
     needs: bandit
     runs-on: ubuntu-latest

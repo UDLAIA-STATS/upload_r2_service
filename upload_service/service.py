@@ -48,11 +48,9 @@ async def _chunked_reader_with_progress(
 
         logger.debug("Chunk %s/%s  (%s%%)", chunk_num, chunks_totales, progress)
 
-        asyncio.create_task(
-            progress_client.post(
+        await progress_client.post(
                 notify_url,
                 json={"video_id": video_id, "status": "uploading", "progress": progress}
-            )
         )
         yield chunk
 

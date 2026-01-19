@@ -142,7 +142,7 @@ python manage.py migrate
 python manage.py runserver
 ```
 
-El servicio estará disponible en `http://localhost:8050`
+El servicio estará disponible en el host en `http://localhost:8050` (mapeado al puerto interno `8000` dentro del contenedor Docker).
 
 ## 📡 API Endpoints
 

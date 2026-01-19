@@ -52,6 +52,17 @@ async def _chunked_reader_with_progress(
         )
         yield chunk
 
+def calculate_upload_timeout(total_size: int) -> int:
+    """Versión para usuarios con internet muy lento (0.5 Mbps)"""
+    max_size = 5 * 1024 * 1024 * 1024
+    total_size = min(total_size, max_size)
+
+    size_mbits = (total_size * 8) / (1024 * 1024)
+    base_seconds = size_mbits / 0.5  # 0.5 Mbps mínimo
+
+    timeout_seconds = int(base_seconds * 1.8)  # 80% margen
+
+    return max(600, min(14400, timeout_seconds))
 
 async def upload_with_progress(file_obj, filename: str, id_partido: int, video_id: str):
     logger.info("Starting upload | video_id=%s | filename=%s | match_id=%s",
@@ -61,9 +72,14 @@ async def upload_with_progress(file_obj, filename: str, id_partido: int, video_i
 
     try:
         async with httpx.AsyncClient(timeout=30) as notify_client:
-            await notify_client.post(
-                notify_url,
-                json={"video_id": video_id, "status": "started", "progress": 0})
+            try:
+                await notify_client.post(
+                    notify_url,
+                    json={"video_id": video_id, "status": "started", "progress": 0})
+            except Exception:
+                logger.warning(
+                    "Error al notificar el inicio de la subida | video_id=%s", video_id)
+                traceback.print_exc()
 
             # 2) URL de subida
             worker_url = str(config("WORKER_URL"))
@@ -78,8 +94,11 @@ async def upload_with_progress(file_obj, filename: str, id_partido: int, video_i
             file_obj.seek(0)
             total_size = file_obj.size
 
-            # 4) subida con progreso - usar el mismo cliente de notificaciones
-            async with httpx.AsyncClient(timeout=None) as upload_client:
+            if isinstance(total_size, int):
+                upload_timeout = calculate_upload_timeout(total_size)
+            else:
+                upload_timeout = 1200
+            async with httpx.AsyncClient(timeout=upload_timeout) as upload_client:
                 resp = await upload_client.put(
                     upload_url,
                     content=_chunked_reader_with_progress(
@@ -87,7 +106,7 @@ async def upload_with_progress(file_obj, filename: str, id_partido: int, video_i
                         total_size,
                         video_id,
                         notify_url,
-                        notify_client),  # Pasar el cliente de notificaciones
+                        notify_client),
                     headers={"Content-Length": str(total_size)}
                 )
                 resp.raise_for_status()

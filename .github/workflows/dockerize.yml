@@ -56,19 +56,10 @@ jobs:
         uses: docker/setup-qemu-action@v3
 
       - name: Construir imagen del microservicio Django
-        env:
-          WORKER_URL:{{ secrets.WORKER_URL }}
-          VIDEO_UPLOAD_NOTIFY_URL:{{ secrets.VIDEO_UPLOAD_NOTIFY_URL }}
-          ANALYSIS_SERVICE_URL:{{ secrets.ANALYSIS_SERVICE_URL }}
         run: |
           docker build \
-            --build-arg DEBUG=True \
-            --build-arg WORKER_URL=${{ env.WORKER_URL }} \
-            --build-arg VIDEO_UPLOAD_NOTIFY_URL=${{ env.VIDEO_UPLOAD_NOTIFY_URL }} \
-            --build-arg ANALYSIS_SERVICE_URL=${{ env.ANALYSIS_SERVICE_URL }} \
             -t ${{ env.IMAGE_NAME }} \
             -f Dockerfile .
-
       - name: Etiquetar imagen
         run: |
           docker tag ${{ env.IMAGE_NAME }} ${{ env.DOCKERHUB_REPO }}:${{ env.IMAGE_NAME }}

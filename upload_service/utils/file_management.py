@@ -116,11 +116,9 @@ async def cleanup_temp_file(file_path: Path):
     we might not have permissions to cleanup the file, so this exception is
     expected and the OS will eventually clean it up.
     """
-    if not file_path.exists():
-        return None
     try:
         # Verificar que el archivo existe y es un archivo (no directorio)
-        if file_path.exists() and file_path.is_file():
+        if file_path.is_file():
             file_path.unlink()
             logger.debug("Temporary file cleaned up: %s", file_path)
         elif file_path.exists():

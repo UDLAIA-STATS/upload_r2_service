@@ -84,7 +84,8 @@ async def upload_with_progress(file_obj, filename: str, id_partido: int, video_i
         total_size = file_obj.size
         
         try:
-            async with httpx.AsyncClient(timeout=None) as client:
+            timeout = calculate_upload_timeout(total_size)
+            async with httpx.AsyncClient(timeout=timeout) as client:
                 resp = await client.put(
                     upload_url,
                     content=_chunked_reader_with_progress(

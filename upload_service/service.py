@@ -6,6 +6,8 @@ import httpx
 from decouple import config
 import traceback
 
+import tenacity
+
 from upload_service.utils.timeout import calculate_upload_timeout
 
 logger = logging.getLogger(__name__)
@@ -19,11 +21,11 @@ CHUNK_SIZE = 5 * 1024 * 1024  # 5 MB
     before_sleep=before_sleep_log(logger, logging.WARNING),
     reraise=False
 )
-async def _trigger_analysis(object_key: str, id_partido: int, video_id: str):
+async def _trigger_analysis(object_key: str, id_partido: int, video_id: str, color: str):
     async with httpx.AsyncClient(timeout=10) as analysis_client:
         res = await analysis_client.post(
             f"{config('ANALYSIS_SERVICE_URL')}/analyze/run",
-            json={"video_name": object_key, "match_id": id_partido}
+            json={"video_name": object_key, "match_id": id_partido, "color": color}
         )
         res.raise_for_status()
         logger.info("Análisis iniciado con éxito | video_key=%s | status_code=%s", video_id, res.status_code)
@@ -59,7 +61,7 @@ async def _chunked_reader_with_progress(
         yield chunk
 
 
-async def upload_with_progress(file_obj, filename: str, id_partido: int, video_id: str):
+async def upload_with_progress(file_obj, filename: str, id_partido: int, video_id: str, color: str):
     logger.info("Starting upload | video_id=%s | filename=%s | match_id=%s",
                 video_id, filename, id_partido)
 
@@ -85,7 +87,7 @@ async def upload_with_progress(file_obj, filename: str, id_partido: int, video_i
         
         try:
             timeout = calculate_upload_timeout(total_size)
-            async with httpx.AsyncClient(timeout=timeout) as client:
+            async with httpx.AsyncClient(timeout=timeout ) as client:
                 resp = await client.put(
                     upload_url,
                     content=_chunked_reader_with_progress(
@@ -105,16 +107,17 @@ async def upload_with_progress(file_obj, filename: str, id_partido: int, video_i
                 notify_url,
                 json={"video_id": video_id, "status": "finished", "progress": 100})
 
-        try:
-            await _trigger_analysis(object_key, id_partido, video_id)
-        except Exception:
-            logger.exception("Falló el análisis después de 3 intentos | video_key=%s", video_id)
+            await _trigger_analysis(object_key, id_partido, video_id, color)
         return {"message": "Video subido correctamente. El análisis se iniciará en breve."}
+    except httpx.TimeoutException as e:
+        logger.exception("Timeout durante la subida del video | video_key=%s", video_id)
+        raise e
+    except tenacity.RetryError as e:
+        logger.exception("Error al iniciar el análisis tras la subida | video_key=%s", video_id)
+        raise e
     except httpx.HTTPStatusError as e:
         logger.exception("Error al subir el video | video_key=%s", video_id)
-        traceback.print_exc()
         raise e
     except Exception as e:
         logger.exception("Error al subir el video | video_key=%s", video_id)
-        traceback.print_exc()
         raise e

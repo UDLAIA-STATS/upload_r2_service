@@ -7,6 +7,7 @@ from rest_framework.response import Response
 from asgiref.sync import async_to_sync
 from rest_framework.exceptions import ValidationError
 from rest_framework import status
+import tenacity
 from .serializers import VideoUploadSerializer
 from .service import upload_with_progress
 from .utils import error_response, format_serializer_errors
@@ -62,6 +63,7 @@ class CloudflareVideoUpload(APIView):
             video_file = request.FILES['video']
             id_partido = request.data.get("id_partido")
             video_key = request.data.get("video_key")
+            color = request.data.get("color")
 
             logger.info("Datos validados | video_key=%s | id_partido=%s | filename=%s",
                         video_key, id_partido, video_file.name)
@@ -70,7 +72,8 @@ class CloudflareVideoUpload(APIView):
                 video_file,
                 video_file.name,
                 id_partido,
-                video_key
+                video_key,
+                color
             )
 
             logger.info("Subida finalizada con éxito | video_key=%s", video_key)
@@ -81,6 +84,24 @@ class CloudflareVideoUpload(APIView):
                     "message": "Video subido correctamente. El análisis comenzará automáticamente."
                 },
                 status=status.HTTP_201_CREATED
+            )
+        
+        except httpx.TimeoutException as timeout_err:
+            logger.exception("Timeout durante la subida | video_key=%s | error=%s",
+                             request.data.get("video_key"), str(timeout_err))
+            return error_response(
+                "El tiempo de subida ha caducado. Intente de nuevo más tarde.",
+                str(timeout_err),
+                status.HTTP_504_GATEWAY_TIMEOUT
+            )
+        
+        except tenacity.RetryError as retry_err:
+            logger.exception("Error al iniciar el análisis tras la subida | video_key=%s | error=%s",
+                             request.data.get("video_key"), str(retry_err))
+            return error_response(
+                "Error al iniciar el análisis tras la subida del video.",
+                str(retry_err),
+                status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
         except httpx.HTTPStatusError as http_err:

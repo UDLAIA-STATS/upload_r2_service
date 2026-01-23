@@ -4,6 +4,7 @@ class VideoUploadSerializer(serializers.Serializer):
     video = serializers.FileField(required=True)
     video_key = serializers.CharField(required=True, max_length=255)
     id_partido = serializers.IntegerField(required=True)
+    color = serializers.CharField(required=True, max_length=100)
 
     def validate_video(self, file):
         allowed_extensions = ["mp4", "mov", "mkv", "avi"]
